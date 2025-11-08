@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👑 Sudoku: The Chess-56 Custom Grid Challenge</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f3f4f6;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #d1d5db;
+            --cell-bg: #ffffff;
+            --cell-given: #3b82f6;
+            --cell-error: #ef4444;
+            --cell-input: #10b981;
+            --accent: #8b5cf6;
+        }
+
+        .dark-mode {
+            --bg-primary: #1f2937;
+            --bg-secondary: #111827;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --cell-bg: #374151;
+            --cell-given: #60a5fa;
+            --cell-error: #f87171;
+            --cell-input: #34d399;
+            --accent: #a78bfa;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 0;
+            border: 3px solid var(--text-primary);
+            width: min(90vw, 450px);
+            height: min(90vw, 450px);
+            margin: 0 auto;
+        }
+
+        .sudoku-cell {
+            aspect-ratio: 1;
+            border: 1px solid var(--border-color);
+            background-color: var(--cell-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(16px, 4vw, 24px);
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .sudoku-cell:hover:not(.given-cell) {
+            background-color: var(--bg-secondary);
+        }
+
+        .sudoku-cell input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            border: none;
+            background: transparent;
+            font-size: inherit;
+            font-weight: inherit;
+            color: inherit;
+            outline: none;
+        }
+
+        .sudoku-cell input::-webkit-outer-spin-button,
+        .sudoku-cell input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .sudoku-cell input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .given-cell {
+            color: var(--cell-given);
+            font-weight: 700;
+        }
+
+        .user-input-cell {
+            color: var(--cell-input);
+        }
+
+        .error-cell {
+            background-color: rgba(239, 68, 68, 0.2) !important;
+            color: var(--cell-error);
+        }
+
+        .sudoku-cell:nth-child(3n):not(:nth-child(9n)) {
+            border-right: 2px solid var(--text-primary);
+        }
+
+        .sudoku-cell:nth-child(n+19):nth-child(-n+27),
+        .sudoku-cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: 2px solid var(--text-primary);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card {
+            background-color: var(--cell-bg);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 2px solid var(--border-color);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: var(--bg-primary);
+            border-radius: 1rem;
+            padding: 2rem;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+        }
+
+        .timer {
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <button id="themeToggle" class="theme-toggle btn btn-secondary">
+        🌙 Dark Mode
+    </button>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="card max-w-md w-full">
+            <h1 class="text-3xl font-bold mb-2 text-center">👑 Sudoku</h1>
+            <h2 class="text-xl mb-6 text-center" style="color: var(--accent)">The Chess-56 Challenge</h2>
+            <p class="mb-6 text-center" style="color: var(--text-secondary)">Enter your email to continue</p>
+            <input type="email" id="emailInput" placeholder="your@email.com" 
+                   class="w-full p-3 rounded-lg mb-4 border-2" 
+                   style="background-color: var(--cell-bg); border-color: var(--border-color); color: var(--text-primary)">
+            <button id="loginBtn" class="btn btn-primary w-full">Login / Continue</button>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="mainMenu" class="hidden min-h-screen p-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold mb-2">👑 Sudoku Chess-56</h1>
+                <p class="text-lg" style="color: var(--text-secondary)">Welcome, <span id="userEmail"></span></p>
+                <button id="logoutBtn" class="mt-2 text-sm underline" style="color: var(--text-secondary)">Logout</button>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <div class="card text-center cursor-pointer hover:opacity-80 transition" id="playModeBtn">
+                    <div class="text-6xl mb-4">🎮</div>
+                    <h2 class="text-2xl font-bold mb-2">Play Mode</h2>
+                    <p style="color: var(--text-secondary)">Solve Sudoku puzzles</p>
+                </div>
+
+                <div class="card text-center cursor-pointer hover:opacity-80 transition" id="creatorModeBtn">
+                    <div class="text-6xl mb-4">✏️</div>
+                    <h2 class="text-2xl font-bold mb-2">Creator Mode</h2>
+                    <p style="color: var(--text-secondary)">Design custom puzzles</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-2xl font-bold">📈 Your Stats</h3>
+                    <button id="deleteStatsBtn" class="btn btn-danger text-sm">Delete All Stats Now</button>
+                </div>
+                
+                <div class="grid md:grid-cols-3 gap-4 mb-4">
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold" style="color: var(--accent)" id="totalSolved">0</div>
+                        <div style="color: var(--text-secondary)">Puzzles Solved</div>
+                    </div>
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold" style="color: var(--accent)" id="totalCreated">0</div>
+                        <div style="color: var(--text-secondary)">Puzzles Created</div>
+                    </div>
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold" style="color: var(--accent)" id="totalTime">0:00</div>
+                        <div style="color: var(--text-secondary)">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="stat-card">
+                        <h4 class="font-bold mb-2 text-center">Easy</h4>
+                        <div class="text-sm" style="color: var(--text-secondary)">
+                            Avg: <span id="avgEasy">--</span><br>
+                            Best: <span id="bestEasy">--</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h4 class="font-bold mb-2 text-center">Medium</h4>
+                        <div class="text-sm" style="color: var(--text-secondary)">
+                            Avg: <span id="avgMedium">--</span><br>
+                            Best: <span id="bestMedium">--</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h4 class="font-bold mb-2 text-center">Hard</h4>
+                        <div class="text-sm" style="color: var(--text-secondary)">
+                            Avg: <span id="avgHard">--</span><br>
+                            Best: <span id="bestHard">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-sm text-center" style="color: var(--text-secondary)">
+                    <span id="nextResetDate"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Play Mode Screen -->
+    <div id="playModeScreen" class="hidden min-h-screen p-4">
+        <div class="max-w-2xl mx-auto">
+            <button id="backToMenuFromPlay" class="btn btn-secondary mb-4">← Back to Menu</button>
+            
+            <h2 class="text-3xl font-bold text-center mb-6">🎮 Play Mode</h2>
+
+            <div class="card mb-4">
+                <div class="flex flex-wrap gap-4 justify-center mb-4">
+                    <button class="btn btn-primary" id="newEasyBtn">Easy Puzzle</button>
+                    <button class="btn btn-primary" id="newMediumBtn">Medium Puzzle</button>
+                    <button class="btn btn-primary" id="newHardBtn">Hard Puzzle</button>
+                    <button class="btn btn-secondary" id="loadCustomBtn">Load Custom</button>
+                </div>
+                
+                <div class="text-center mb-4">
+                    <div class="timer" id="playTimer">00:00</div>
+                    <div style="color: var(--text-secondary)" id="playDifficulty"></div>
+                </div>
+
+                <div class="sudoku-grid mb-4" id="playGrid"></div>
+
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <button class="btn btn-secondary" id="clearPlayBtn">Clear User Input</button>
+                    <button class="btn btn-primary" id="checkSolutionBtn">Check Solution</button>
+                    <button class="btn btn-secondary" id="hintBtn">Get Hint</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Creator Mode Screen -->
+    <div id="creatorModeScreen" class="hidden min-h-screen p-4">
+        <div class="max-w-2xl mx-auto">
+            <button id="backToMenuFromCreator" class="btn btn-secondary mb-4">← Back to Menu</button>
+            
+            <h2 class="text-3xl font-bold text-center mb-6">✏️ Creator Mode</h2>
+
+            <div class="card mb-4">
+                <p class="text-center mb-4" style="color: var(--text-secondary)">
+                    Design your custom Sudoku puzzle. Conflicts will be highlighted in red.
+                </p>
+
+                <div class="sudoku-grid mb-4" id="creatorGrid"></div>
+
+                <div class="flex flex-wrap gap-4 justify-center mb-4">
+                    <button class="btn btn-secondary" id="clearCreatorBtn">Clear All</button>
+                    <button class="btn btn-primary" id="validatePuzzleBtn">Validate Puzzle</button>
+                </div>
+
+                <div id="validationResult" class="hidden mt-4 p-4 rounded-lg">
+                    <h3 class="font-bold mb-2" id="validationTitle"></h3>
+                    <p id="validationMessage"></p>
+                    <div id="validationActions" class="mt-4 flex flex-wrap gap-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Custom Modal -->
+    <div id="loadCustomModal" class="hidden modal-overlay">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Load Custom Puzzle</h3>
+            <p class="mb-4" style="color: var(--text-secondary)">Paste the 81-character puzzle code:</p>
+            <textarea id="customCodeInput" rows="3" 
+                      class="w-full p-3 rounded-lg mb-4 border-2" 
+                      style="background-color: var(--cell-bg); border-color: var(--border-color); color: var(--text-primary)"
+                      placeholder="Enter 81 characters (0-9, where 0 represents empty cells)"></textarea>
+            <div class="flex gap-4">
+                <button id="loadCustomConfirmBtn" class="btn btn-primary flex-1">Load Puzzle</button>
+                <button id="loadCustomCancelBtn" class="btn btn-secondary flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== GLOBAL STATE ====================
+        let currentUser = null;
+        let currentScreen = 'login';
+        let isDarkMode = false;
+        let playTimerInterval = null;
+        let playStartTime = null;
+        let currentPlayDifficulty = null;
+        let currentPlayBoard = null;
+        let currentCreatorBoard = null;
+
+        // ==================== SUDOKU SOLVER ENGINE ====================
+        class SudokuSolver {
+            constructor(board) {
+                this.board = board.map(row => [...row]);
+            }
+
+            isValid(row, col, num) {
+                // Check row
+                for (let x = 0; x < 9; x++) {
+                    if (this.board[row][x] === num) return false;
+                }
+
+                // Check column
+                for (let x = 0; x < 9; x++) {
+                    if (this.board[x][col] === num) return false;
+                }
+
+                // Check 3x3 box
+                let startRow = row - row % 3;
+                let startCol = col - col % 3;
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        if (this.board[i + startRow][j + startCol] === num) return false;
+                    }
+                }
+
+                return true;
+            }
+
+            solve() {
+                for (let row = 0; row < 9; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        if (this.board[row][col] === 0) {
+                            for (let num = 1; num <= 9; num++) {
+                                if (this.isValid(row, col, num)) {
+                                    this.board[row][col] = num;
+                                    if (this.solve()) return true;
+                                    this.board[row][col] = 0;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            countSolutions(limit = 2) {
+                let count = 0;
+
+                const countHelper = () => {
+                    if (count >= limit) return;
+
+                    for (let row = 0; row < 9; row++) {
+                        for (let col = 0; col < 9; col++) {
+                            if (this.board[row][col] === 0) {
+                                for (let num = 1; num <= 9; num++) {
+                                    if (this.isValid(row, col, num)) {
+                                        this.board[row][col] = num;
+                                        countHelper();
+                                        this.board[row][col] = 0;
+                                    }
+                                }
+                                return;
+                            }
+                        }
+                    }
+                    count++;
+                };
+
+                countHelper();
+                return count;
+            }
+
+            getSolution() {
+                this.solve();
+                return this.board;
+            }
+        }
+
+        // ==================== VALIDATION FUNCTIONS ====================
+        function checkConflicts(board) {
+            const conflicts = [];
+
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const num = board[row][col];
+                    if (num === 0) continue;
+
+                    // Check row
+                    for (let c = 0; c < 9; c++) {
+                        if (c !== col && board[row][c] === num) {
+                            conflicts.push([row, col]);
+                            break;
+                        }
+                    }
+
+                    // Check column
+                    for (let r = 0; r < 9; r++) {
+                        if (r !== row && board[r][col] === num) {
+                            if (!conflicts.find(c => c[0] === row && c[1] === col)) {
+                                conflicts.push([row, col]);
+                            }
+                            break;
+                        }
+                    }
+
+                    // Check 3x3 box
+                    const startRow = Math.floor(row / 3) * 3;
+                    const startCol = Math.floor(col / 3) * 3;
+                    for (let r = startRow; r < startRow + 3; r++) {
+                        for (let c = startCol; c < startCol + 3; c++) {
+                            if ((r !== row || c !== col) && board[r][c] === num) {
+                                if (!conflicts.find(cf => cf[0] === row && cf[1] === col)) {
+                                    conflicts.push([row, col]);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return conflicts;
+        }
+
+        function validateBoard(board) {
+            const conflicts = checkConflicts(board);
+            if (conflicts.length > 0) {
+                return { valid: false, message: 'Rule violations detected. Fix highlighted cells.' };
+            }
+
+            const solver = new SudokuSolver(board);
+            const solutionCount = solver.countSolutions(2);
+
+            if (solutionCount === 0) {
+                return { valid: false, message: 'No solution exists for this puzzle.' };
+            } else if (solutionCount > 1) {
+                return { valid: false, message: 'Multiple solutions exist. Puzzle must have a unique solution.' };
+            }
+
+            const difficulty = rateDifficulty(board);
+            return { valid: true, message: 'Puzzle is valid and uniquely solvable!', difficulty };
+        }
+
+        function rateDifficulty(board) {
+            let givenCount = 0;
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (board[row][col] !== 0) givenCount++;
+                }
+            }
+
+            if (givenCount >= 40) return 'Easy';
+            if (givenCount >= 30) return 'Medium';
+            if (givenCount >= 25) return 'Hard';
+            return 'Expert';
+        }
+
+        // ==================== BOARD ENCODING/DECODING ====================
+        function encodeBoard(board) {
+            let code = '';
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    code += board[row][col].toString();
+                }
+            }
+            return code;
+        }
+
+        function decodeBoard(code) {
+            if (code.length !== 81) return null;
+            const board = [];
+            for (let i = 0; i < 9; i++) {
+                const row = [];
+                for (let j = 0; j < 9; j++) {
+                    const char = code[i * 9 + j];
+                    const num = parseInt(char);
+                    if (isNaN(num) || num < 0 || num > 9) return null;
+                    row.push(num);
+                }
+                board.push(row);
+            }
+            return board;
+        }
+
+        // ==================== PUZZLE GENERATION ====================
+        function generatePuzzle(difficulty) {
+            // Generate a solved board
+            const board = Array(9).fill(0).map(() => Array(9).fill(0));
+            const solver = new SudokuSolver(board);
+            solver.solve();
+            const solvedBoard = solver.board;
+
+            // Remove numbers based on difficulty
+            const puzzleBoard = solvedBoard.map(row => [...row]);
+            let cellsToRemove = difficulty === 'Easy' ? 40 : difficulty === 'Medium' ? 50 : 60;
+
+            const cells = [];
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    cells.push([i, j]);
+                }
+            }
+
+            // Shuffle cells
+            for (let i = cells.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cells[i], cells[j]] = [cells[j], cells[i]];
+            }
+
+            let removed = 0;
+            for (const [row, col] of cells) {
+                if (removed >= cellsToRemove) break;
+                
+                const backup = puzzleBoard[row][col];
+                puzzleBoard[row][col] = 0;
+
+                const testSolver = new SudokuSolver(puzzleBoard);
+                if (testSolver.countSolutions(2) === 1) {
+                    removed++;
+                } else {
+                    puzzleBoard[row][col] = backup;
+                }
+            }
+
+            return { puzzle: puzzleBoard, solution: solvedBoard };
+        }
+
+        // ==================== ACCOUNT SYSTEM ====================
+        function saveUserData(email, data) {
+            const users = JSON.parse(localStorage.getItem('chess56_sudoku_users') || '{}');
+            users[email] = {
+                ...data,
+                lastUpdated: Date.now()
+            };
+            localStorage.setItem('chess56_sudoku_users', JSON.stringify(users));
+        }
+
+        function getUserData(email) {
+            const users = JSON.parse(localStorage.getItem('chess56_sudoku_users') || '{}');
+            const userData = users[email];
+            
+            if (!userData) {
+                return {
+                    email,
+                    totalSolved: 0,
+                    totalCreated: 0,
+                    times: { easy: [], medium: [], hard: [] },
+                    bestTimes: { easy: null, medium: null, hard: null },
+                    createdAt: Date.now(),
+                    lastReset: Date.now()
+                };
+            }
+
+            // Check if 2 months have passed
+            const twoMonthsAgo = Date.now() - (60 * 24 * 60 * 60 * 1000); // 60 days
+            if (userData.lastReset < twoMonthsAgo) {
+                return {
+                    email,
+                    totalSolved: 0,
+                    totalCreated: 0,
+                    times: { easy: [], medium: [], hard: [] },
+                    bestTimes: { easy: null, medium: null, hard: null },
+                    createdAt: userData.createdAt,
+                    lastReset: Date.now()
+                };
+            }
+
+            return userData;
+        }
+
+        function deleteUserStats(email) {
+            const userData = getUserData(email);
+            userData.totalSolved = 0;
+            userData.totalCreated = 0;
+            userData.times = { easy: [], medium: [], hard: [] };
+            userData.bestTimes = { easy: null, medium: null, hard: null };
+            userData.lastReset = Date.now();
+            saveUserData(email, userData);
+            updateStatsDisplay();
+        }
+
+        function updateStatsDisplay() {
+            if (!currentUser) return;
+
+            const data = getUserData(currentUser);
+            
+            document.getElementById('totalSolved').textContent = data.totalSolved;
+            document.getElementById('totalCreated').textContent = data.totalCreated;
+
+            // Calculate total time
+            let totalSeconds = 0;
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                if (data.times[diff]) {
+                    totalSeconds += data.times[diff].reduce((a, b) => a + b, 0);
+                }
+            });
+            document.getElementById('totalTime').textContent = formatTime(totalSeconds);
+
+            // Display average and best times
+            ['easy', 'medium', 'hard'].forEach(diff => {
+                const times = data.times[diff] || [];
+                const avg = times.length > 0 ? Math.floor(times.reduce((a, b) => a + b, 0) / times.length) : null;
+                const best = data.bestTimes[diff];
+
+                document.getElementById(`avg${diff.charAt(0).toUpperCase() + diff.slice(1)}`).textContent = 
+                    avg ? formatTime(avg) : '--';
+                document.getElementById(`best${diff.charAt(0).toUpperCase() + diff.slice(1)}`).textContent = 
+                    best ? formatTime(best) : '--';
+            });
+
+            // Calculate next reset date
+            const nextReset = new Date(data.lastReset + (60 * 24 * 60 * 60 * 1000));
+            document.getElementById('nextResetDate').textContent = 
+                `Auto-reset on: ${nextReset.toLocaleDateString()}`;
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // ==================== UI FUNCTIONS ====================
+        function showScreen(screenName) {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('playModeScreen').classList.add('hidden');
+            document.getElementById('creatorModeScreen').classList.add('hidden');
+
+            switch (screenName) {
+                case 'login':
+                    document.getElementById('loginScreen').classList.remove('hidden');
+                    break;
+                case 'menu':
+                    document.getElementById('mainMenu').classList.remove('hidden');
+                    updateStatsDisplay();
+                    break;
+                case 'play':
+                    document.getElementById('playModeScreen').classList.remove('hidden');
+                    break;
+                case 'creator':
+                    document.getElementById('creatorModeScreen').classList.remove('hidden');
+                    break;
+            }
+            currentScreen = screenName;
+        }
+
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                document.getElementById('themeToggle').textContent = '☀️ Light Mode';
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.getElementById('themeToggle').textContent = '🌙 Dark Mode';
+            }
+        }
+
+        // ==================== PLAY MODE ====================
+        function createPlayGrid() {
+            const grid = document.getElementById('playGrid');
+            grid.innerHTML = '';
+            
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'sudoku-cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '1';
+                    input.max = '9';
+                    input.dataset.row = row;
+                    input.dataset.col = col;
+
+                    input.addEventListener('input', (e) => {
+                        let value = parseInt(e.target.value);
+                        if (isNaN(value) || value < 1 || value > 9) {
+                            e.target.value = '';
+                            currentPlayBoard.userInput[row][col] = 0;
+                        } else {
+                            e.target.value = value;
+                            currentPlayBoard.userInput[row][col] = value;
+                        }
+                    });
+
+                    cell.appendChild(input);
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function loadPlayBoard(board, difficulty) {
+            currentPlayDifficulty = difficulty;
+            currentPlayBoard = {
+                puzzle: board.map(row => [...row]),
+                userInput: board.map(row => [...row])
+            };
+
+            const grid = document.getElementById('playGrid');
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const cell = grid.children[row * 9 + col];
+                    const input = cell.querySelector('input');
+
+                    if (board[row][col] !== 0) {
+                        input.value = board[row][col];
+                        input.disabled = true;
+                        cell.classList.add('given-cell');
+                        cell.classList.remove('user-input-cell');
+                    } else {
+                        input.value = '';
+                        input.disabled = false;
+                        cell.classList.remove('given-cell');
+                        cell.classList.add('user-input-cell');
+                    }
+                }
+            }
+
+            document.getElementById('playDifficulty').textContent = `Difficulty: ${difficulty}`;
+            startPlayTimer();
+        }
+
+        function startPlayTimer() {
+            stopPlayTimer();
+            playStartTime = Date.now();
+            playTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - playStartTime) / 1000);
+                document.getElementById('playTimer').textContent = formatTime(elapsed);
+            }, 1000);
+        }
+
+        function stopPlayTimer() {
+            if (playTimerInterval) {
+                clearInterval(playTimerInterval);
+                playTimerInterval = null;
+            }
+        }
+
+        function getPlayTime() {
+            return Math.floor((Date.now() - playStartTime) / 1000);
+        }
+
+        function clearPlayUserInput() {
+            if (!currentPlayBoard) return;
+
+            const grid = document.getElementById('playGrid');
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (currentPlayBoard.puzzle[row][col] === 0) {
+                        const cell = grid.children[row * 9 + col];
+                        const input = cell.querySelector('input');
+                        input.value = '';
+                        currentPlayBoard.userInput[row][col] = 0;
+                    }
+                }
+            }
+        }
+
+        function checkSolution() {
+            if (!currentPlayBoard) return;
+
+            const conflicts = checkConflicts(currentPlayBoard.userInput);
+            const grid = document.getElementById('playGrid');
+
+            // Clear previous error highlighting
+            for (let i = 0; i < 81; i++) {
+                grid.children[i].classList.remove('error-cell');
+            }
+
+            if (conflicts.length > 0) {
+                conflicts.forEach(([row, col]) => {
+                    grid.children[row * 9 + col].classList.add('error-cell');
+                });
+                alert('❌ There are conflicts in your solution. Check the highlighted cells.');
+                return;
+            }
+
+            // Check if board is complete
+            let complete = true;
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (currentPlayBoard.userInput[row][col] === 0) {
+                        complete = false;
+                        break;
+                    }
+                }
+                if (!complete) break;
+            }
+
+            if (!complete) {
+                alert('ℹ️ No conflicts found, but the puzzle is not complete yet.');
+                return;
+            }
+
+            // Puzzle is complete and correct!
+            stopPlayTimer();
+            const timeSpent = getPlayTime();
+            
+            const userData = getUserData(currentUser);
+            userData.totalSolved++;
+            
+            const diffKey = currentPlayDifficulty.toLowerCase();
+            if (!userData.times[diffKey]) userData.times[diffKey] = [];
+            userData.times[diffKey].push(timeSpent);
+            
+            if (!userData.bestTimes[diffKey] || timeSpent < userData.bestTimes[diffKey]) {
+                userData.bestTimes[diffKey] = timeSpent;
+            }
+            
+            saveUserData(currentUser, userData);
+            
+            alert(`🎉 Congratulations! Puzzle solved in ${formatTime(timeSpent)}!`);
+            updateStatsDisplay();
+        }
+
+        function giveHint() {
+            if (!currentPlayBoard) return;
+
+            const solver = new SudokuSolver(currentPlayBoard.puzzle);
+            const solution = solver.getSolution();
+
+            // Find an empty cell and fill it
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (currentPlayBoard.puzzle[row][col] === 0 && 
+                        currentPlayBoard.userInput[row][col] === 0) {
+                        const grid = document.getElementById('playGrid');
+                        const cell = grid.children[row * 9 + col];
+                        const input = cell.querySelector('input');
+                        input.value = solution[row][col];
+                        currentPlayBoard.userInput[row][col] = solution[row][col];
+                        return;
+                    }
+                }
+            }
+
+            alert('ℹ️ No hints available. The puzzle might be complete!');
+        }
+
+        // ==================== CREATOR MODE ====================
+        function createCreatorGrid() {
+            const grid = document.getElementById('creatorGrid');
+            grid.innerHTML = '';
+            currentCreatorBoard = Array(9).fill(0).map(() => Array(9).fill(0));
+            
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'sudoku-cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '1';
+                    input.max = '9';
+                    input.dataset.row = row;
+                    input.dataset.col = col;
+
+                    input.addEventListener('input', (e) => {
+                        let value = parseInt(e.target.value);
+                        if (isNaN(value) || value < 1 || value > 9) {
+                            e.target.value = '';
+                            currentCreatorBoard[row][col] = 0;
+                        } else {
+                            e.target.value = value;
+                            currentCreatorBoard[row][col] = value;
+                            cell.classList.add('given-cell');
+                        }
+                        highlightCreatorConflicts();
+                    });
+
+                    cell.appendChild(input);
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function highlightCreatorConflicts() {
+            const conflicts = checkConflicts(currentCreatorBoard);
+            const grid = document.getElementById('creatorGrid');
+
+            // Clear previous error highlighting
+            for (let i = 0; i < 81; i++) {
+                grid.children[i].classList.remove('error-cell');
+            }
+
+            // Highlight conflicts
+            conflicts.forEach(([row, col]) => {
+                grid.children[row * 9 + col].classList.add('error-cell');
+            });
+        }
+
+        function clearCreatorBoard() {
+            currentCreatorBoard = Array(9).fill(0).map(() => Array(9).fill(0));
+            const grid = document.getElementById('creatorGrid');
+            
+            for (let i = 0; i < 81; i++) {
+                const cell = grid.children[i];
+                const input = cell.querySelector('input');
+                input.value = '';
+                cell.classList.remove('given-cell', 'error-cell');
+            }
+
+            document.getElementById('validationResult').classList.add('hidden');
+        }
+
+        function validatePuzzle() {
+            const result = validateBoard(currentCreatorBoard);
+            const resultDiv = document.getElementById('validationResult');
+            const titleDiv = document.getElementById('validationTitle');
+            const messageDiv = document.getElementById('validationMessage');
+            const actionsDiv = document.getElementById('validationActions');
+
+            resultDiv.classList.remove('hidden');
+            actionsDiv.innerHTML = '';
+
+            if (result.valid) {
+                resultDiv.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                titleDiv.textContent = '✅ Valid Puzzle!';
+                messageDiv.textContent = `${result.message} Difficulty: ${result.difficulty}`;
+
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'btn btn-primary';
+                saveBtn.textContent = 'Copy Puzzle Code';
+                saveBtn.onclick = () => {
+                    const code = encodeBoard(currentCreatorBoard);
+                    navigator.clipboard.writeText(code).then(() => {
+                        alert(`✅ Puzzle code copied to clipboard!\n\nCode: ${code}\n\nShare this with others!`);
+                        
+                        const userData = getUserData(currentUser);
+                        userData.totalCreated++;
+                        saveUserData(currentUser, userData);
+                        updateStatsDisplay();
+                    });
+                };
+                actionsDiv.appendChild(saveBtn);
+            } else {
+                resultDiv.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                titleDiv.textContent = '❌ Invalid Puzzle';
+                messageDiv.textContent = result.message;
+            }
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Theme toggle
+            document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+            // Login
+            document.getElementById('loginBtn').addEventListener('click', () => {
+                const email = document.getElementById('emailInput').value.trim();
+                if (!email || !email.includes('@')) {
+                    alert('Please enter a valid email address.');
+                    return;
+                }
+                currentUser = email;
+                document.getElementById('userEmail').textContent = email;
+                showScreen('menu');
+            });
+
+            document.getElementById('emailInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('loginBtn').click();
+                }
+            });
+
+            // Logout
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                currentUser = null;
+                stopPlayTimer();
+                showScreen('login');
+                document.getElementById('emailInput').value = '';
+            });
+
+            // Delete stats
+            document.getElementById('deleteStatsBtn').addEventListener('click', () => {
+                if (confirm('⚠️ Are you sure you want to delete all your stats? This cannot be undone.')) {
+                    deleteUserStats(currentUser);
+                    alert('✅ All stats have been deleted.');
+                }
+            });
+
+            // Mode selection
+            document.getElementById('playModeBtn').addEventListener('click', () => {
+                showScreen('play');
+                createPlayGrid();
+            });
+
+            document.getElementById('creatorModeBtn').addEventListener('click', () => {
+                showScreen('creator');
+                createCreatorGrid();
+            });
+
+            // Back buttons
+            document.getElementById('backToMenuFromPlay').addEventListener('click', () => {
+                stopPlayTimer();
+                showScreen('menu');
+            });
+
+            document.getElementById('backToMenuFromCreator').addEventListener('click', () => {
+                showScreen('menu');
+            });
+
+            // Play mode buttons
+            document.getElementById('newEasyBtn').addEventListener('click', () => {
+                const { puzzle } = generatePuzzle('Easy');
+                loadPlayBoard(puzzle, 'Easy');
+            });
+
+            document.getElementById('newMediumBtn').addEventListener('click', () => {
+                const { puzzle } = generatePuzzle('Medium');
+                loadPlayBoard(puzzle, 'Medium');
+            });
+
+            document.getElementById('newHardBtn').addEventListener('click', () => {
+                const { puzzle } = generatePuzzle('Hard');
+                loadPlayBoard(puzzle, 'Hard');
+            });
+
+            document.getElementById('loadCustomBtn').addEventListener('click', () => {
+                document.getElementById('loadCustomModal').classList.remove('hidden');
+            });
+
+            document.getElementById('loadCustomCancelBtn').addEventListener('click', () => {
+                document.getElementById('loadCustomModal').classList.add('hidden');
+                document.getElementById('customCodeInput').value = '';
+            });
+
+            document.getElementById('loadCustomConfirmBtn').addEventListener('click', () => {
+                const code = document.getElementById('customCodeInput').value.trim();
+                const board = decodeBoard(code);
+                
+                if (!board) {
+                    alert('❌ Invalid puzzle code. Please enter exactly 81 digits (0-9).');
+                    return;
+                }
+
+                const result = validateBoard(board);
+                if (!result.valid) {
+                    alert(`❌ Invalid puzzle: ${result.message}`);
+                    return;
+                }
+
+                loadPlayBoard(board, result.difficulty);
+                document.getElementById('loadCustomModal').classList.add('hidden');
+                document.getElementById('customCodeInput').value = '';
+            });
+
+            document.getElementById('clearPlayBtn').addEventListener('click', clearPlayUserInput);
+            document.getElementById('checkSolutionBtn').addEventListener('click', checkSolution);
+            document.getElementById('hintBtn').addEventListener('click', giveHint);
+
+            // Creator mode buttons
+            document.getElementById('clearCreatorBtn').addEventListener('click', () => {
+                if (confirm('Clear all cells?')) {
+                    clearCreatorBoard();
+                }
+            });
+
+            document.getElementById('validatePuzzleBtn').addEventListener('click', validatePuzzle);
+
+            // Initialize
+            showScreen('login');
+        });
+    </script>
+</body>
+</html>
